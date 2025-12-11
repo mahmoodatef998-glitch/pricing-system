@@ -2,6 +2,6 @@
   "version": 2,
   "buildCommand": "bash scripts/pre-build.sh && cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
-  "installCommand": "npm install && cd backend && npm install && cd ../frontend && npm install",
+  "installCommand": "cd frontend && npm install && cd ../backend && npm install",
   "framework": "nextjs"
 }
