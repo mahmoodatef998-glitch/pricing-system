@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.*.local
+.next
+dist
+coverage
+.git
+*.log
+.DS_Store
+Thumbs.db
+.vercel
+

@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  description String
+  size        String
+  breakers    String
+  brand       String
+  ipEnclosure String?
+  pole        String?
+  price       String?
+  createdAt   DateTime  @default(now())
+  drawings    Drawing[]
+  history     ProductHistory[]
+
+  // Composite indexes for common queries
+  @@index([brand, breakers, description])
+  @@index([brand, description])
+  @@index([description, size])
+  @@index([breakers, brand])
+  // Single column indexes for filtering
+  @@index([brand])
+  @@index([description])
+  @@index([size])
+  @@index([breakers])
+  @@index([createdAt])
+}
+
+model Drawing {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  filePath   String
+  fileType   String
+  uploadedAt DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductHistory {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  action    String   // 'created', 'updated', 'deleted'
+  field     String?  // Field name that changed (e.g., 'price', 'description')
+  oldValue  String?  // Old value
+  newValue  String?  // New value
+  userId    String?  // Username who made the change
+  changes   Json?    // Full changes object for complex updates
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([createdAt])
+  @@index([action])
+}
+
