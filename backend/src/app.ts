@@ -110,7 +110,7 @@ app.use('/api/history', historyRoutes);
  *       503:
  *         description: Service is degraded
  */
-app.get('/health', async (req: Request, res: Response) => {
+app.get('/api/health', async (req: Request, res: Response) => {
   try {
     const health = {
       status: 'ok',
