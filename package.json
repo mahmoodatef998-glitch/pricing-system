@@ -3,12 +3,18 @@
   "version": "1.0.0",
   "description": "Full Stack Pricing System - Vercel + Supabase",
   "private": true,
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "install:all": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "dependencies": {
+    "next": "^14.0.4"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
