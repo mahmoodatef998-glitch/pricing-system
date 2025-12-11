@@ -19,6 +19,9 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+*.env
+!.env.example
 
 # IDE
 .vscode/
@@ -55,4 +58,29 @@ build.log
 # Docker temp files
 docker-compose-ports.yml
 ports.tmp
+
+# Production backups
+backups/
+*.sql
+*.sql.gz
+*.tar.gz
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.cert
+
+# Cloudinary cache
+.cache/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Database dumps
+*.dump
+*.backup
 
