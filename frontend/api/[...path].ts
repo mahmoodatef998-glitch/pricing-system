@@ -27,17 +27,8 @@ async function getHandler() {
     try {
       const expressApp = await getApp();
       // Wrap Express app with serverless-http
-      // serverless-http converts Express app to AWS Lambda handler
       serverlessHandler = serverless(expressApp, {
         binary: ['image/*', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-        request: (request: any, event: any, context: any) => {
-          // Ensure URL path is correct
-          // Vercel already handles /api prefix, but Express expects it
-          if (request.url && !request.url.startsWith('/api')) {
-            request.url = '/api' + request.url;
-          }
-          return request;
-        },
       });
     } catch (error) {
       console.error('Error creating serverless handler:', error);
@@ -55,19 +46,16 @@ export default async function handler(
   try {
     const handler = await getHandler();
     
-    // serverless-http expects AWS Lambda event/context
-    // But Vercel Request/Response are compatible
-    // We need to convert Vercel req/res to Lambda format
+    // serverless-http can handle Vercel Request/Response directly
+    // Convert to Lambda format for compatibility
+    const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
     
-    // Create Lambda event from Vercel request
-    // Vercel already strips /api prefix, so we need to add it back for Express
-    const requestPath = req.url || '/';
-    const expressPath = requestPath.startsWith('/api') ? requestPath : `/api${requestPath}`;
-    const url = new URL(expressPath, `https://${req.headers.host || 'localhost'}`);
+    // Ensure path starts with /api for Express
+    const path = url.pathname.startsWith('/api') ? url.pathname : `/api${url.pathname}`;
     
     const event = {
       httpMethod: req.method || 'GET',
-      path: url.pathname,
+      path: path,
       pathParameters: null,
       queryStringParameters: Object.fromEntries(url.searchParams) || null,
       multiValueQueryStringParameters: null,
@@ -84,7 +72,7 @@ export default async function handler(
         requestId: `vercel-${Date.now()}`,
         stage: 'prod',
         httpMethod: req.method || 'GET',
-        path: url.pathname,
+        path: path,
         protocol: 'HTTP/1.1',
         requestTime: new Date().toISOString(),
         requestTimeEpoch: Date.now(),
@@ -109,7 +97,7 @@ export default async function handler(
       succeed: () => {},
     };
 
-    // Call serverless handler (returns Lambda response)
+    // Call serverless handler
     const result = await handler(event, context);
     
     // Convert Lambda response to Vercel response
@@ -146,10 +134,6 @@ export default async function handler(
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
     console.error('Request URL:', req.url);
     console.error('Request Method:', req.method);
-    console.error('Environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'MISSING',
-    });
     
     if (!res.headersSent) {
       res.status(500).json({ 
