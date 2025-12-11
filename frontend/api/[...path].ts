@@ -10,7 +10,7 @@ async function getApp() {
   if (!app) {
     try {
       // Lazy load to avoid issues with Prisma in serverless
-      const expressApp = await import('../backend/src/app');
+      const expressApp = await import('../../backend/src/app');
       app = expressApp.default;
     } catch (error) {
       console.error('Error loading Express app:', error);
