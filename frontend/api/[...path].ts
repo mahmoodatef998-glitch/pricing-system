@@ -2,17 +2,46 @@
 // This handles all /api/* requests
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import serverless from 'serverless-http';
 
+let app: any;
 let serverlessHandler: any;
+
+async function getApp() {
+  if (!app) {
+    try {
+      // Lazy load to avoid Prisma issues in serverless
+      const expressApp = await import('../../backend/src/app');
+      app = expressApp.default;
+    } catch (error) {
+      console.error('Error loading Express app:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : error);
+      throw error;
+    }
+  }
+  return app;
+}
 
 async function getHandler() {
   if (!serverlessHandler) {
     try {
-      // Import serverless handler from Express app
-      const appModule = await import('../../backend/src/app');
-      serverlessHandler = appModule.serverlessHandler;
+      const expressApp = await getApp();
+      // Wrap Express app with serverless-http
+      // serverless-http converts Express app to AWS Lambda handler
+      serverlessHandler = serverless(expressApp, {
+        binary: ['image/*', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        request: (request: any, event: any, context: any) => {
+          // Ensure URL path is correct
+          // Vercel already handles /api prefix, but Express expects it
+          if (request.url && !request.url.startsWith('/api')) {
+            request.url = '/api' + request.url;
+          }
+          return request;
+        },
+      });
     } catch (error) {
-      console.error('Error loading serverless handler:', error);
+      console.error('Error creating serverless handler:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : error);
       throw error;
     }
   }
@@ -26,19 +55,27 @@ export default async function handler(
   try {
     const handler = await getHandler();
     
-    // Convert Vercel request to AWS Lambda event format
-    // (which serverless-http expects)
+    // serverless-http expects AWS Lambda event/context
+    // But Vercel Request/Response are compatible
+    // We need to convert Vercel req/res to Lambda format
+    
+    // Create Lambda event from Vercel request
     const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
     
     const event = {
       httpMethod: req.method || 'GET',
       path: url.pathname,
       pathParameters: null,
-      queryStringParameters: Object.fromEntries(url.searchParams) || {},
+      queryStringParameters: Object.fromEntries(url.searchParams) || null,
       multiValueQueryStringParameters: null,
       headers: req.headers || {},
-      multiValueHeaders: {},
-      body: req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null,
+      multiValueHeaders: Object.entries(req.headers || {}).reduce((acc, [key, value]) => {
+        acc[key] = Array.isArray(value) ? value : [value];
+        return acc;
+      }, {} as Record<string, string[]>),
+      body: req.body 
+        ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))
+        : null,
       isBase64Encoded: false,
       requestContext: {
         requestId: `vercel-${Date.now()}`,
@@ -69,16 +106,16 @@ export default async function handler(
       succeed: () => {},
     };
 
-    // Call serverless handler
+    // Call serverless handler (returns Lambda response)
     const result = await handler(event, context);
     
-    // Set status code
+    // Convert Lambda response to Vercel response
     res.status(result.statusCode || 200);
     
     // Set headers
     if (result.headers) {
       Object.entries(result.headers).forEach(([key, value]) => {
-        if (value) {
+        if (value && key.toLowerCase() !== 'content-length') {
           res.setHeader(key, Array.isArray(value) ? value[0] : value as string);
         }
       });
@@ -104,6 +141,12 @@ export default async function handler(
   } catch (error) {
     console.error('API Handler Error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Request URL:', req.url);
+    console.error('Request Method:', req.method);
+    console.error('Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'MISSING',
+    });
     
     if (!res.headersSent) {
       res.status(500).json({ 
