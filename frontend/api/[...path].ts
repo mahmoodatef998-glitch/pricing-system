@@ -3,21 +3,20 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Import Express app
-let app: any;
+let serverlessHandler: any;
 
-async function getApp() {
-  if (!app) {
+async function getHandler() {
+  if (!serverlessHandler) {
     try {
-      // Lazy load to avoid issues with Prisma in serverless
-      const expressApp = await import('../../backend/src/app');
-      app = expressApp.default;
+      // Import serverless handler from Express app
+      const appModule = await import('../../backend/src/app');
+      serverlessHandler = appModule.serverlessHandler;
     } catch (error) {
-      console.error('Error loading Express app:', error);
+      console.error('Error loading serverless handler:', error);
       throw error;
     }
   }
-  return app;
+  return serverlessHandler;
 }
 
 export default async function handler(
@@ -25,80 +24,94 @@ export default async function handler(
   res: VercelResponse
 ) {
   try {
-    const expressApp = await getApp();
+    const handler = await getHandler();
     
-    // Vercel passes the full path including /api
-    // For example: /api/health, /api/products, etc.
-    // Express app expects the same paths
+    // Convert Vercel request to AWS Lambda event format
+    // (which serverless-http expects)
+    const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
     
-    // Create Express-compatible request object
-    const expressReq = {
-      method: req.method,
-      url: req.url || '/',
-      originalUrl: req.url || '/',
-      path: req.url?.split('?')[0] || '/',
-      query: req.query || {},
-      body: req.body,
+    const event = {
+      httpMethod: req.method || 'GET',
+      path: url.pathname,
+      pathParameters: null,
+      queryStringParameters: Object.fromEntries(url.searchParams) || {},
+      multiValueQueryStringParameters: null,
       headers: req.headers || {},
-      params: {},
-      ip: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress,
-    } as any;
+      multiValueHeaders: {},
+      body: req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null,
+      isBase64Encoded: false,
+      requestContext: {
+        requestId: `vercel-${Date.now()}`,
+        stage: 'prod',
+        httpMethod: req.method || 'GET',
+        path: url.pathname,
+        protocol: 'HTTP/1.1',
+        requestTime: new Date().toISOString(),
+        requestTimeEpoch: Date.now(),
+        identity: {
+          sourceIp: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown',
+        },
+      },
+    };
 
-    const expressRes = {
-      statusCode: 200,
-      status: function(code: number) {
-        res.status(code);
-        this.statusCode = code;
-        return this;
-      },
-      json: function(data: any) {
-        res.json(data);
-        return this;
-      },
-      send: function(data: any) {
-        res.send(data);
-        return this;
-      },
-      setHeader: function(name: string, value: string) {
-        res.setHeader(name, value);
-        return this;
-      },
-      getHeader: function(name: string) {
-        return res.getHeader(name);
-      },
-      end: function(data?: any) {
-        if (data) {
-          res.send(data);
-        } else {
-          res.end();
-        }
-        return this;
-      },
-    } as any;
+    const context = {
+      callbackWaitsForEmptyEventLoop: false,
+      functionName: 'api-handler',
+      functionVersion: '$LATEST',
+      invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:api-handler',
+      memoryLimitInMB: '512',
+      awsRequestId: `vercel-${Date.now()}`,
+      logGroupName: '/aws/lambda/api-handler',
+      logStreamName: '2023/01/01/[$LATEST]abcdef123456',
+      getRemainingTimeInMillis: () => 30000,
+      done: () => {},
+      fail: () => {},
+      succeed: () => {},
+    };
 
-    // Handle the request with Express app
-    expressApp(expressReq, expressRes);
+    // Call serverless handler
+    const result = await handler(event, context);
     
-    // Return a promise that resolves when the response is sent
-    return new Promise((resolve) => {
-      if (expressRes.headersSent || res.headersSent) {
-        resolve(undefined);
-      } else {
-        // If Express didn't send a response, send a default one
-        setTimeout(() => {
-          if (!res.headersSent) {
-            res.status(404).json({ error: 'Not found' });
-          }
-          resolve(undefined);
-        }, 100);
+    // Set status code
+    res.status(result.statusCode || 200);
+    
+    // Set headers
+    if (result.headers) {
+      Object.entries(result.headers).forEach(([key, value]) => {
+        if (value) {
+          res.setHeader(key, Array.isArray(value) ? value[0] : value as string);
+        }
+      });
+    }
+    
+    // Send body
+    if (result.body) {
+      const body = result.isBase64Encoded 
+        ? Buffer.from(result.body, 'base64').toString()
+        : result.body;
+      
+      // Try to parse as JSON, otherwise send as text
+      try {
+        const jsonBody = JSON.parse(body);
+        res.json(jsonBody);
+      } catch {
+        res.send(body);
       }
-    });
+    } else {
+      res.end();
+    }
+    
   } catch (error) {
     console.error('API Handler Error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    
     if (!res.headersSent) {
       res.status(500).json({ 
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: process.env.NODE_ENV === 'development' 
+          ? (error instanceof Error ? error.stack : undefined)
+          : undefined
       });
     }
   }

@@ -178,5 +178,9 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+// Export for serverless (Vercel)
+import serverless from 'serverless-http';
+export const serverlessHandler = serverless(app);
+
 export default app;
 
