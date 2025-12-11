@@ -60,7 +60,10 @@ export default async function handler(
     // We need to convert Vercel req/res to Lambda format
     
     // Create Lambda event from Vercel request
-    const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
+    // Vercel already strips /api prefix, so we need to add it back for Express
+    const requestPath = req.url || '/';
+    const expressPath = requestPath.startsWith('/api') ? requestPath : `/api${requestPath}`;
+    const url = new URL(expressPath, `https://${req.headers.host || 'localhost'}`);
     
     const event = {
       httpMethod: req.method || 'GET',
