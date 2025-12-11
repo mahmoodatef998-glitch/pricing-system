@@ -1,6 +1,20 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Auto-detect API URL for Vercel
+const getApiUrl = () => {
+  // In production on Vercel, use same origin
+  if (typeof window !== 'undefined') {
+    // Client-side: use current origin
+    return window.location.origin;
+  }
+  // Server-side: use environment variable or default
+  return process.env.NEXT_PUBLIC_API_URL || 
+         process.env.VERCEL_URL 
+           ? `https://${process.env.VERCEL_URL}` 
+           : 'http://localhost:4000';
+};
+
+const API_URL = getApiUrl();
 
 class ApiClient {
   private client: AxiosInstance;
