@@ -6,8 +6,14 @@ set -e
 
 echo "🔧 Running pre-build script..."
 
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+echo "📁 Project root: $PROJECT_ROOT"
+
 # Navigate to backend directory
-cd backend
+cd "$PROJECT_ROOT/backend"
 
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
@@ -28,9 +34,6 @@ else
   echo "❌ Prisma Client generation failed!"
   exit 1
 fi
-
-# Navigate back to root
-cd ..
 
 echo "✅ Pre-build script completed successfully"
 
