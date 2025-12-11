@@ -2,36 +2,17 @@
 // This handles all /api/* requests
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import serverless from 'serverless-http';
 
-let app: any;
 let serverlessHandler: any;
-
-async function getApp() {
-  if (!app) {
-    try {
-      // Lazy load to avoid Prisma issues in serverless
-      const expressApp = await import('../../backend/src/app');
-      app = expressApp.default;
-    } catch (error) {
-      console.error('Error loading Express app:', error);
-      console.error('Error details:', error instanceof Error ? error.stack : error);
-      throw error;
-    }
-  }
-  return app;
-}
 
 async function getHandler() {
   if (!serverlessHandler) {
     try {
-      const expressApp = await getApp();
-      // Wrap Express app with serverless-http
-      serverlessHandler = serverless(expressApp, {
-        binary: ['image/*', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-      });
+      // Import serverlessHandler directly from app.ts
+      const appModule = await import('../../backend/src/app');
+      serverlessHandler = appModule.serverlessHandler;
     } catch (error) {
-      console.error('Error creating serverless handler:', error);
+      console.error('Error loading serverless handler:', error);
       console.error('Error details:', error instanceof Error ? error.stack : error);
       throw error;
     }
