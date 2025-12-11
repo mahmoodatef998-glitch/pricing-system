@@ -3,10 +3,5 @@
   "buildCommand": "bash scripts/pre-build.sh && cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
   "installCommand": "npm install && cd backend && npm install && cd ../frontend && npm install",
-  "framework": "nextjs",
-  "functions": {
-    "frontend/api/[...path].ts": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  "framework": "nextjs"
 }
