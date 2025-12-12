@@ -12,7 +12,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "@vercel/node": "^3.0.0"
+    "@vercel/node": "^3.0.0",
+    "next": "^14.0.4"
   }
 }
 
